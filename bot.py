@@ -11,7 +11,6 @@ ADMIN_FILE = 'admins.json'
 LEADS_FILE = 'leads.json'
 
 # ==================== НАСТРОЙКИ FIREBASE ====================
-# Вставь сюда URL твоей базы Firebase, который ты скопировал на Шаге 1
 FIREBASE_URL = 'https://relocate-agency-fef6e-default-rtdb.europe-west1.firebasedatabase.app/leads.json'
 
 def save_lead_to_firebase(lead):
@@ -58,6 +57,12 @@ def save_leads(leads):
     """Сохраняет лиды в файл"""
     with open(LEADS_FILE, 'w', encoding='utf-8') as f:
         json.dump(leads, f, ensure_ascii=False, indent=2)
+    # Отправка в Firebase для CRM
+try:
+    requests.post(FIREBASE_URL, json=lead, timeout=5)
+    print("✅ Лид отправлен в Firebase")
+except Exception as e:
+    print(f"❌ Ошибка Firebase: {e}")
 
 def add_admin(admin_id):
     """Добавляет админа"""
