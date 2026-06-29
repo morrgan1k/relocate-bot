@@ -10,62 +10,57 @@ BOT_TOKEN = '8575996468:AAFAURwiyXTnnb76L-4UsMULmHbRknIDdeY'
 ADMIN_FILE = 'admins.json'
 LEADS_FILE = 'leads.json'
 
-# ==================== НАСТРОЙКИ FIREBASE ====================
-FIREBASE_URL = 'https://relocate-agency-fef6e-default-rtdb.europe-west1.firebasedatabase.app/leads.json'
+# Supabase настройки
+SUPABASE_URL = 'https://osgqobfvmdaxuhutqcjq.supabase.co'
+SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZ3FvYmZ2bWRheHVodXRxY2pxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NjIwNDgsImV4cCI6MjA5ODMzODA0OH0.nyl3RKAfifM3jkkJlIj2webmkuHHfBtJHrixdumpXmY'
 
-def save_lead_to_firebase(lead):
-    """Отправляет лид в Firebase, чтобы CRM на сайте могла его увидеть"""
+def save_lead_to_supabase(lead):
+    """Отправляет лид в Supabase"""
     try:
-        response = requests.post(FIREBASE_URL, json=lead, timeout=5)
-        if response.status_code == 200:
-            print(f"✅ Лид успешно отправлен в Firebase")
+        headers = {
+            'apikey': SUPABASE_KEY,
+            'Authorization': f'Bearer {SUPABASE_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        response = requests.post(
+            f'{SUPABASE_URL}/rest/v1/leads',
+            json=lead,
+            headers=headers,
+            timeout=5
+        )
+        if response.status_code in [200, 201]:
+            print(f"✅ Лид отправлен в Supabase")
         else:
-            print(f"❌ Ошибка отправки в Firebase: {response.status_code}")
+            print(f"❌ Ошибка Supabase: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"❌ Ошибка сети при отправке в Firebase: {e}")
+        print(f"❌ Ошибка сети Supabase: {e}")
 
 # Инициализация бота
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ==================== РАБОТА С ФАЙЛАМИ ====================
 def load_admins():
-    """Загружает список админов из файла"""
     if os.path.exists(ADMIN_FILE):
         with open(ADMIN_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return []
 
 def save_admins(admins):
-    """Сохраняет список админов в файл"""
     with open(ADMIN_FILE, 'w', encoding='utf-8') as f:
         json.dump(admins, f, ensure_ascii=False, indent=2)
 
 def load_leads():
-    """Загружает лиды из файла"""
     if os.path.exists(LEADS_FILE):
-        try:
-            with open(LEADS_FILE, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                if not content:  # Если файл пустой
-                    return []
-                return json.loads(content)
-        except (json.JSONDecodeError, IOError):
-            return []
+        with open(LEADS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
     return []
 
 def save_leads(leads):
-    """Сохраняет лиды в файл"""
     with open(LEADS_FILE, 'w', encoding='utf-8') as f:
         json.dump(leads, f, ensure_ascii=False, indent=2)
-    # Отправка в Firebase для CRM
-try:
-    requests.post(FIREBASE_URL, json=lead, timeout=5)
-    print("✅ Лид отправлен в Firebase")
-except Exception as e:
-    print(f"❌ Ошибка Firebase: {e}")
 
 def add_admin(admin_id):
-    """Добавляет админа"""
     admins = load_admins()
     if admin_id not in admins:
         admins.append(admin_id)
@@ -74,7 +69,6 @@ def add_admin(admin_id):
     return False
 
 def remove_admin(admin_id):
-    """Удаляет админа"""
     admins = load_admins()
     if admin_id in admins:
         admins.remove(admin_id)
@@ -83,7 +77,6 @@ def remove_admin(admin_id):
     return False
 
 def is_admin(user_id):
-    """Проверяет, является ли пользователь админом"""
     return user_id in load_admins()
 
 # ==================== ХРАНИЛИЩЕ СОСТОЯНИЙ ====================
@@ -94,10 +87,10 @@ def main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
         types.KeyboardButton('🏠 ВНЖ / Визы'),
-        types.KeyboardButton('🛂 Паспорт / Гражданство')
+        types.KeyboardButton(' Паспорт / Гражданство')
     )
     markup.add(
-        types.KeyboardButton('👶 Роды за рубежом'),
+        types.KeyboardButton(' Роды за рубежом'),
         types.KeyboardButton('💼 Другое')
     )
     return markup
@@ -105,7 +98,7 @@ def main_keyboard():
 def admin_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
-        types.InlineKeyboardButton("📊 Статистика", callback_data='admin_stats'),
+        types.InlineKeyboardButton(" Статистика", callback_data='admin_stats'),
         types.InlineKeyboardButton("📋 Лиды", callback_data='admin_leads')
     )
     markup.add(
@@ -116,7 +109,7 @@ def admin_keyboard():
 
 def back_keyboard():
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data='admin_back'))
+    markup.add(types.InlineKeyboardButton(" Назад", callback_data='admin_back'))
     return markup
 
 # ==================== КОМАНДЫ ====================
@@ -125,7 +118,6 @@ def start(message):
     chat_id = message.chat.id
     args = message.text.split()
     
-    # Проверяем, админ ли это
     if is_admin(chat_id):
         bot.send_message(
             chat_id,
@@ -135,7 +127,6 @@ def start(message):
         )
         return
     
-    # Обычный пользователь
     user_states[chat_id] = {'step': 'start'}
     
     if len(args) > 1:
@@ -151,7 +142,7 @@ def start(message):
     
     bot.send_message(
         chat_id,
-        "👋 *Привет! Это бот агентства Relocate Agency.*\n\n"
+        "👋 *Привет! Это бот агентства Relocate.*\n\n"
         "Мы помогаем с:\n"
         "• ВНЖ и визами\n"
         "• Паспортами и гражданством\n"
@@ -164,10 +155,8 @@ def start(message):
 @bot.message_handler(commands=['admin'])
 def admin_command(message):
     chat_id = message.chat.id
-    
     if not is_admin(chat_id):
-        return  # Просто игнорируем, если не админ
-    
+        return
     bot.send_message(
         chat_id,
         "🔧 *Админ-панель*\n\nВыберите действие:",
@@ -180,12 +169,10 @@ def admin_command(message):
 def callback_handler(call):
     chat_id = call.message.chat.id
     
-    # Проверка прав админа
     if not is_admin(chat_id):
-        bot.answer_callback_query(call.id, "⛔ Доступ запрещён", show_alert=True)
+        bot.answer_callback_query(call.id, " Доступ запрещён", show_alert=True)
         return
     
-    # Статистика
     if call.data == 'admin_stats':
         leads = load_leads()
         total = len(leads)
@@ -205,18 +192,17 @@ def callback_handler(call):
         bot.send_message(chat_id, stats_text, parse_mode='Markdown')
         bot.answer_callback_query(call.id)
     
-    # Показать лиды
     elif call.data == 'admin_leads':
         leads = load_leads()
         if not leads:
-            bot.send_message(chat_id, "📭 Пока нет лидов")
+            bot.send_message(chat_id, " Пока нет лидов")
         else:
             for lead in leads[-10:]:
                 msg = (
                     f"🔥 *НОВЫЙ ЛИД*\n\n"
                     f"👤 Пользователь: {lead.get('username', 'Не указан')}\n"
                     f"📞 Контакт: {lead.get('contact', 'Не указан')}\n"
-                    f"📂 Категория: {lead.get('category', 'Не указана')}\n"
+                    f" Категория: {lead.get('category', 'Не указана')}\n"
                     f"🎯 Программа: {lead.get('program', 'Не указана')}\n"
                     f"📍 Источник: {lead.get('source', 'Прямой переход')}\n"
                     f"⏰ Время: {lead.get('time', 'Не указано')}\n"
@@ -225,7 +211,6 @@ def callback_handler(call):
                 bot.send_message(chat_id, msg, parse_mode='Markdown')
         bot.answer_callback_query(call.id)
     
-    # Добавить админа
     elif call.data == 'admin_add':
         msg = bot.send_message(
             chat_id,
@@ -238,7 +223,6 @@ def callback_handler(call):
         bot.register_next_step_handler(msg, handle_add_admin)
         bot.answer_callback_query(call.id)
     
-    # Забрать админку
     elif call.data == 'admin_remove':
         admins = load_admins()
         if not admins:
@@ -263,7 +247,6 @@ def callback_handler(call):
         )
         bot.answer_callback_query(call.id)
     
-    # Удалить конкретного админа
     elif call.data.startswith('remove_'):
         admin_id_to_remove = int(call.data.replace('remove_', ''))
         if remove_admin(admin_id_to_remove):
@@ -275,7 +258,7 @@ def callback_handler(call):
             try:
                 bot.send_message(
                     admin_id_to_remove,
-                    "⚠️ У вас забрали права администратора в боте Relocate Agency"
+                    "️ У вас забрали права администратора в боте Relocate Agency"
                 )
             except:
                 pass
@@ -283,7 +266,6 @@ def callback_handler(call):
             bot.send_message(chat_id, "❌ Ошибка при удалении админа")
         bot.answer_callback_query(call.id)
     
-    # Назад в админку
     elif call.data == 'admin_back':
         bot.send_message(
             chat_id,
@@ -298,7 +280,7 @@ def handle_add_admin(message):
     chat_id = message.chat.id
     text = message.text.strip()
     
-    if text == '🔙 Назад':
+    if text == ' Назад':
         bot.send_message(
             chat_id,
             "🔧 *Админ-панель*",
@@ -337,7 +319,7 @@ def handle_message(message):
     text = message.text.strip()
     
     if is_admin(chat_id):
-        return  
+        return
     
     if chat_id not in user_states:
         user_states[chat_id] = {'step': 'start'}
@@ -356,7 +338,7 @@ def handle_message(message):
     
     if state.get('step') in ['start', 'category']:
         category_map = {
-            '🏠 ВНЖ / Визы': 'ВНЖ / Визы',
+            ' ВНЖ / Визы': 'ВНЖ / Визы',
             '🛂 Паспорт / Гражданство': 'Паспорт / Гражданство',
             '👶 Роды за рубежом': 'Роды за рубежом',
             '💼 Другое': 'Другое'
@@ -394,32 +376,27 @@ def handle_message(message):
             'program': state.get('program', 'Не указана'),
             'source': state.get('source', 'Прямой переход'),
             'status': 'hot',
-            'commission': '€200',
-            'timestamp': datetime.now().isoformat()  # Добавляем для сортировки
+            'commission': '€200'
         }
         
-        # Сохраняем в локальный файл
+        # Сохраняем локально
         leads = load_leads()
         leads.append(lead)
         save_leads(leads)
         
-        # === ОТПРАВКА В FIREBASE ДЛЯ CRM ===
-        try:
-            firebase_url = 'https://твой-проект-default-rtdb.firebaseio.com/leads.json'
-            requests.post(firebase_url, json=lead, timeout=5)
-            print(f"✅ Лид отправлен в Firebase")
-        except Exception as e:
-            print(f"❌ Ошибка отправки в Firebase: {e}")
+        # === ОТПРАВКА В SUPABASE ===
+        save_lead_to_supabase(lead)
         # ===================================
-
+        
+        # Уведомление админам
         admins = load_admins()
         notification = (
             f"🔥 *НОВЫЙ ЛИД #{lead['id']}*\n\n"
             f"👤 Пользователь: {lead['username']}\n"
-            f"📞 Контакт: {text}\n"
+            f" Контакт: {text}\n"
             f"📂 Категория: {lead['category']}\n"
             f"🎯 Программа: {lead['program']}\n"
-            f"📍 Источник: {lead['source']}\n"
+            f" Источник: {lead['source']}\n"
             f"⏰ Время: {lead['time']}\n"
             f"⭐ Статус: 🔥 Горячий"
         )
@@ -455,6 +432,6 @@ if __name__ == '__main__':
         save_leads([])
     
     print("🤖 Бот запущен...")
-    print(f"📁 Файл админов: {ADMIN_FILE}")
+    print(f" Файл админов: {ADMIN_FILE}")
     print(f"📁 Файл лидов: {LEADS_FILE}")
     bot.polling(none_stop=True, interval=0)
